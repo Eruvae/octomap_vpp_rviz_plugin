@@ -223,4 +223,4 @@ bool InflatedRoiOctreeDisplay::checkType(std::string type_id)
 
 #include <pluginlib/class_list_macros.h>
 
-PLUGINLIB_EXPORT_CLASS( octomap_vpp_rviz_plugin::InflatedRoiOctreeDisplay, rviz::Display);
+PLUGINLIB_EXPORT_CLASS( octomap_vpp_rviz_plugin::InflatedRoiOctreeDisplay, rviz::Display)

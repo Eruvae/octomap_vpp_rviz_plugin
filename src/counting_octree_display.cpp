@@ -281,4 +281,4 @@ void CountingOcTreeDisplay::updateMaxColor()
 
 #include <pluginlib/class_list_macros.h>
 
-PLUGINLIB_EXPORT_CLASS( octomap_vpp_rviz_plugin::CountingOcTreeDisplay, rviz::Display);
+PLUGINLIB_EXPORT_CLASS( octomap_vpp_rviz_plugin::CountingOcTreeDisplay, rviz::Display)

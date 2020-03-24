@@ -250,4 +250,4 @@ void WorkspaceOcTreeDisplay::updateMinReachability()
 
 #include <pluginlib/class_list_macros.h>
 
-PLUGINLIB_EXPORT_CLASS( octomap_vpp_rviz_plugin::WorkspaceOcTreeDisplay, rviz::Display);
+PLUGINLIB_EXPORT_CLASS( octomap_vpp_rviz_plugin::WorkspaceOcTreeDisplay, rviz::Display)
