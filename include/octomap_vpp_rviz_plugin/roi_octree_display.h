@@ -3,6 +3,7 @@
 
 #include "octomap_rviz_plugins/occupancy_grid_display.h"
 #include "octomap_vpp/RoiOcTree.h"
+#include "rviz/properties/color_property.h"
 
 namespace octomap_vpp_rviz_plugin
 {
@@ -18,6 +19,9 @@ protected:
   ///Returns false, if the type_id (of the message) does not correspond to the template paramter
   ///of this class, true if correct or unknown (i.e., no specialized method for that template).
   bool checkType(std::string type_id);
+
+  rviz::ColorProperty* min_color_property_;
+  rviz::ColorProperty* max_color_property_;
 };
 
 }

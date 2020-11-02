@@ -38,6 +38,9 @@ RoiOcTreeDisplay::RoiOcTreeDisplay() : octomap_rviz_plugin::OccupancyGridDisplay
   octree_coloring_property_->addOption( "Z-Axis",  OCTOMAP_Z_AXIS_COLOR );
   octree_coloring_property_->addOption( "Cell Probability",  OCTOMAP_PROBABLILTY_COLOR );
   octree_coloring_property_->addOption( "ROI Probability",  OCTOMAP_ROI_COLOR );
+
+  min_color_property_ = new rviz::ColorProperty("Minimum color", Qt::red, "Color used for free/non-ROI voxels, depending on coloring method", this, SLOT(updateTopic));
+  max_color_property_ = new rviz::ColorProperty("Maximum color", Qt::green, "Color used for occupied/ROI voxels, depending on coloring method", this, SLOT(updateTopic));
 }
 
 void RoiOcTreeDisplay::incomingMessageCallback(const octomap_msgs::OctomapConstPtr& msg)
@@ -192,6 +195,9 @@ void RoiOcTreeDisplay::setVoxelColor(rviz::PointCloud::Point& newPoint, octomap_
 {
     float cell_probability;
     OctreeVoxelColorMode octree_color_mode = static_cast<OctreeVoxelColorMode>(octree_coloring_property_->getOptionInt());
+    double min_r, min_g, min_b, max_r, max_g, max_b;
+    min_color_property_->getColor().getRgbF(&min_r, &min_g, &min_b);
+    max_color_property_->getColor().getRgbF(&max_r, &max_g, &max_b);
     switch (octree_color_mode)
     {
       case OCTOMAP_Z_AXIS_COLOR:
@@ -199,11 +205,11 @@ void RoiOcTreeDisplay::setVoxelColor(rviz::PointCloud::Point& newPoint, octomap_
         break;
       case OCTOMAP_PROBABLILTY_COLOR:
         cell_probability = node.getOccupancy();
-        newPoint.setColor((1.0f-cell_probability), cell_probability, 0.0);
+        newPoint.setColor(min_r + cell_probability * (max_r - min_r), min_g + cell_probability * (max_g - min_g), min_b + cell_probability * (max_b - min_b));
         break;
       case OCTOMAP_ROI_COLOR:
         cell_probability = node.getRoiProb();
-        newPoint.setColor((1.0f-cell_probability), cell_probability, 0.0);
+        newPoint.setColor(min_r + cell_probability * (max_r - min_r), min_g + cell_probability * (max_g - min_g), min_b + cell_probability * (max_b - min_b));
         break;
       default:
         break;
