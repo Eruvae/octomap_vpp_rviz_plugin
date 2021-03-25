@@ -71,6 +71,7 @@ void RoiOcTreeDisplay::incomingMessageCallback(const octomap_msgs::OctomapConstP
     octomap = dynamic_cast<octomap_vpp::RoiOcTree*>(tree);
     if(!octomap){
       setStatusStd(StatusProperty::Error, "Message", "Wrong octomap type. Use a different display type.");
+      return;
     }
   }
   else

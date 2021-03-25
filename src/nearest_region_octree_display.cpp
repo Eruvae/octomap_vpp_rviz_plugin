@@ -1,4 +1,5 @@
-#include "octomap_vpp_rviz_plugin/workspace_octree_display.h"
+#include "octomap_vpp_rviz_plugin/nearest_region_octree_display.h"
+#include "octomap_vpp_rviz_plugin/glasbey.h"
 
 #include "rviz/properties/enum_property.h"
 #include "rviz/properties/status_property.h"
@@ -16,24 +17,24 @@ static const std::size_t max_octree_depth_ = sizeof(unsigned short) * 8;
 
 enum OctreeVoxelRenderMode
 {
-  OCTOMAP_ALL_VOXELS,
-  OCTOMAP_OUTER_VOXELS
+  OCTOMAP_INFLATED_REGIONS,
+  OCTOMAP_CORE_REGIONS
 };
 
 enum OctreeVoxelColorMode
 {
   OCTOMAP_Z_AXIS_COLOR,
-  OCTOMAP_COUNT_COLOR
+  OCTOMAP_DISCRETE_COLOR
 };
 
 using rviz::StatusProperty;
 using rviz::PointCloud;
 
-WorkspaceOcTreeDisplay::WorkspaceOcTreeDisplay() : octomap_rviz_plugin::OccupancyGridDisplay()
+NearestRegionOcTreeDisplay::NearestRegionOcTreeDisplay() : octomap_rviz_plugin::OccupancyGridDisplay()
 {
   int pInd = octree_render_property_->rowNumberInParent();
   this->removeChildren(pInd, 1);
-  octree_render_property_ = new rviz::EnumProperty( "Voxel Rendering", "Outer Voxels",
+  octree_render_property_ = new rviz::EnumProperty( "Voxel Rendering", "With inflated regions",
                                                     "Select voxel type.",
                                                      0,
                                                      SLOT( updateOctreeRenderMode() ),
@@ -41,32 +42,23 @@ WorkspaceOcTreeDisplay::WorkspaceOcTreeDisplay() : octomap_rviz_plugin::Occupanc
 
   addChild(octree_render_property_, pInd);
 
-  octree_render_property_->addOption("All Voxels", OCTOMAP_ALL_VOXELS);
-  octree_render_property_->addOption("Outer Voxels", OCTOMAP_OUTER_VOXELS);
+  octree_render_property_->addOption("With inflated regions", OCTOMAP_INFLATED_REGIONS);
+  octree_render_property_->addOption("Only core regions", OCTOMAP_CORE_REGIONS);
 
   pInd = octree_coloring_property_->rowNumberInParent();
   this->removeChildren(pInd, 1);
-  octree_coloring_property_ = new rviz::EnumProperty( "Voxel Coloring", "Count",
+  octree_coloring_property_ = new rviz::EnumProperty( "Voxel Coloring", "Discrete",
                                                 "Select voxel coloring mode",
                                                 0,
                                                 SLOT( updateOctreeColorMode() ),
                                                 this);
   addChild(octree_coloring_property_, pInd);
 
-  octree_coloring_property_->addOption( "Count",  OCTOMAP_COUNT_COLOR );
+  octree_coloring_property_->addOption( "Discrete", OCTOMAP_DISCRETE_COLOR );
   octree_coloring_property_->addOption( "Z-Axis",  OCTOMAP_Z_AXIS_COLOR );
-
-  min_reachability_property_ = new rviz::FloatProperty("Min count", 0.f,
-                                              "Select minimum reachability to display (0 = unlimited)",
-                                              this,
-                                              SLOT( updateMinReachability() ),
-                                              this);
-
-  min_reachability_property_->setMin(0.f);
-  min_reachability_property_->setMax(1.f);
 }
 
-void WorkspaceOcTreeDisplay::incomingMessageCallback(const octomap_msgs::OctomapConstPtr& msg)
+void NearestRegionOcTreeDisplay::incomingMessageCallback(const octomap_msgs::OctomapConstPtr& msg)
 {
   ++messages_received_;
   setStatus(StatusProperty::Ok, "Messages", QString::number(messages_received_) + " octomap messages received");
@@ -88,10 +80,10 @@ void WorkspaceOcTreeDisplay::incomingMessageCallback(const octomap_msgs::Octomap
   }
 
   // creating octree
-  octomap_vpp::WorkspaceOcTree* octomap = NULL;
+  octomap_vpp::NearestRegionOcTree* octomap = NULL;
   octomap::AbstractOcTree* tree = octomap_msgs::msgToMap(*msg);
   if (tree){
-    octomap = dynamic_cast<octomap_vpp::WorkspaceOcTree*>(tree);
+    octomap = dynamic_cast<octomap_vpp::NearestRegionOcTree*>(tree);
     if(!octomap){
       setStatusStd(StatusProperty::Error, "Message", "Wrong octomap type. Use a different display type.");
       return;
@@ -110,6 +102,7 @@ void WorkspaceOcTreeDisplay::incomingMessageCallback(const octomap_msgs::Octomap
   double minX, minY, minZ, maxX, maxY, maxZ;
   octomap->getMetricMin(minX, minY, minZ);
   octomap->getMetricMax(maxX, maxY, maxZ);
+  double max_dist = octomap->computeMaxDist();
 
   // reset rviz pointcloud classes
   for (std::size_t i = 0; i < max_octree_depth_; ++i)
@@ -125,58 +118,15 @@ void WorkspaceOcTreeDisplay::incomingMessageCallback(const octomap_msgs::Octomap
     double maxHeight = std::min<double>(max_height_property_->getFloat(), maxZ);
     double minHeight = std::max<double>(min_height_property_->getFloat(), minZ);
     int stepSize = 1 << (octomap->getTreeDepth() - treeDepth); // for pruning of occluded voxels
-    for (octomap_vpp::WorkspaceOcTree::iterator it = octomap->begin(treeDepth), end = octomap->end(); it != end; ++it)
+    for (octomap_vpp::NearestRegionOcTree::iterator it = octomap->begin(treeDepth), end = octomap->end(); it != end; ++it)
     {
-        float minReachability = min_reachability_property_->getFloat();
-        bool render_condition = it.getZ() <= maxHeight && it.getZ() >= minHeight && it->getValue() >= minReachability;
+        bool render_condition = it.getZ() <= maxHeight && it.getZ() >= minHeight;
         if (render_condition)
         {
           OctreeVoxelRenderMode octree_render_mode = static_cast<OctreeVoxelRenderMode>(octree_render_property_->getOptionInt());
-          bool render_all = (octree_render_mode == OCTOMAP_ALL_VOXELS);
-          bool display_voxel = render_all;
-
-          if (!render_all)
-          {
-            // check if current voxel has neighbors on all sides -> no need to be displayed
-            bool allNeighborsFound = true;
-
-            octomap::OcTreeKey key;
-            octomap::OcTreeKey nKey = it.getKey();
-
-            // determine indices of potentially neighboring voxels for depths < maximum tree depth
-            // +/-1 at maximum depth, +2^(depth_difference-1) and -2^(depth_difference-1)-1 on other depths
-            int diffBase = (it.getDepth() < octomap->getTreeDepth()) ? 1 << (octomap->getTreeDepth() - it.getDepth() - 1) : 1;
-            int diff[2] = {-((it.getDepth() == octomap->getTreeDepth()) ? diffBase : diffBase + 1), diffBase};
-
-            // cells with adjacent faces can occlude a voxel, iterate over the cases x,y,z (idxCase) and +/- (diff)
-            for (unsigned int idxCase = 0; idxCase < 3; ++idxCase)
-            {
-              int idx_0 = idxCase % 3;
-              int idx_1 = (idxCase + 1) % 3;
-              int idx_2 = (idxCase + 2) % 3;
-
-              for (int i = 0; allNeighborsFound && i < 2; ++i)
-              {
-                key[idx_0] = nKey[idx_0] + diff[i];
-                // if rendering is restricted to treeDepth < maximum tree depth inner nodes with distance stepSize can already occlude a voxel
-                for (key[idx_1] = nKey[idx_1] + diff[0] + 1; allNeighborsFound && key[idx_1] < nKey[idx_1] + diff[1]; key[idx_1] += stepSize)
-                {
-                  for (key[idx_2] = nKey[idx_2] + diff[0] + 1; allNeighborsFound && key[idx_2] < nKey[idx_2] + diff[1]; key[idx_2] += stepSize)
-                  {
-                    octomap_vpp::WorkspaceNode* node = octomap->search(key, treeDepth);
-
-                    if (!(node && node->getValue() >= minReachability))
-                    {
-                      // we do not have a neighbor => break!
-                      allNeighborsFound = false;
-                    }
-                  }
-                }
-              }
-            }
-
-            display_voxel |= !allNeighborsFound;
-          }
+          bool display_voxel = true;
+          if (octree_render_mode == OCTOMAP_CORE_REGIONS && it->getValue().distance != 0)
+            display_voxel = false;
 
           if (display_voxel)
           {
@@ -186,7 +136,7 @@ void WorkspaceOcTreeDisplay::incomingMessageCallback(const octomap_msgs::Octomap
             newPoint.position.y = it.getY();
             newPoint.position.z = it.getZ();
 
-            setVoxelColor(newPoint, *it, minZ, maxZ);
+            setVoxelColor(newPoint, *it, minZ, maxZ, max_dist);
             // push to point vectors
             unsigned int depth = it.getDepth();
             point_buf_[depth - 1].push_back(newPoint);
@@ -211,30 +161,57 @@ void WorkspaceOcTreeDisplay::incomingMessageCallback(const octomap_msgs::Octomap
   delete octomap;
 }
 
-void WorkspaceOcTreeDisplay::setVoxelColor(rviz::PointCloud::Point& newPoint, octomap_vpp::WorkspaceNode &node, double minZ, double maxZ)
+void NearestRegionOcTreeDisplay::setVoxelColor(rviz::PointCloud::Point& newPoint, octomap_vpp::NearestRegionOcTreeNode &node, double minZ, double maxZ, double maxDist)
 {
     OctreeVoxelColorMode octree_color_mode = static_cast<OctreeVoxelColorMode>(octree_coloring_property_->getOptionInt());
-    float reachability = node.getValue();
+    octomap_vpp::RegionInfo regInf = node.getValue();
+    //const double MIN_ALPHA = 0.01, MAX_ALPHA = 0.1;
+    double alpha = regInf.distance == 0 ? 1.0 : 0.01;//MIN_ALPHA + (maxDist - regInf.distance) / maxDist * (MAX_ALPHA - MIN_ALPHA);
     switch (octree_color_mode)
     {
       case OCTOMAP_Z_AXIS_COLOR:
         setColor(newPoint.position.z, minZ, maxZ, color_factor_, newPoint);
         break;
-      case OCTOMAP_COUNT_COLOR:
-        newPoint.setColor((1.0f-reachability), reachability, 0.0);
+      case OCTOMAP_DISCRETE_COLOR:
+        newPoint.setColor(glasbey[regInf.nearestRegionId % 256][0] / 255.f,
+                          glasbey[regInf.nearestRegionId % 256][1] / 255.f,
+                          glasbey[regInf.nearestRegionId % 256][2] / 255.f,
+                          alpha);
         break;
       default:
         break;
     }
 }
 
-bool WorkspaceOcTreeDisplay::checkType(std::string type_id)
+void NearestRegionOcTreeDisplay::update(float wall_dt, float ros_dt)
 {
-  if(type_id == "WorkspaceOcTree") return true;
+  if (new_points_received_)
+  {
+    boost::mutex::scoped_lock lock(mutex_);
+
+    for (size_t i = 0; i < max_octree_depth_; ++i)
+    {
+      double size = box_size_[i];
+
+      cloud_[i]->clear();
+      cloud_[i]->setDimensions(size, size, size);
+
+      cloud_[i]->addPoints(&new_points_[i].front(), new_points_[i].size());
+      new_points_[i].clear();
+      cloud_[i]->setAlpha(alpha_property_->getFloat(), true);
+    }
+    new_points_received_ = false;
+  }
+  updateFromTF();
+}
+
+bool NearestRegionOcTreeDisplay::checkType(std::string type_id)
+{
+  if(type_id == "NearestRegionOcTree") return true;
   else return false;
 }
 
-void WorkspaceOcTreeDisplay::resubscribe()
+void NearestRegionOcTreeDisplay::resubscribe()
 {
   unsubscribe();
   reset();
@@ -242,13 +219,8 @@ void WorkspaceOcTreeDisplay::resubscribe()
   context_->queueRender();
 }
 
-void WorkspaceOcTreeDisplay::updateMinReachability()
-{
-  resubscribe();
-}
-
 }
 
 #include <pluginlib/class_list_macros.h>
 
-PLUGINLIB_EXPORT_CLASS( octomap_vpp_rviz_plugin::WorkspaceOcTreeDisplay, rviz::Display)
+PLUGINLIB_EXPORT_CLASS( octomap_vpp_rviz_plugin::NearestRegionOcTreeDisplay, rviz::Display)

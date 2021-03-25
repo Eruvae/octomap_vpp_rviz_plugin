@@ -152,6 +152,7 @@ add_library(${PROJECT_NAME}
     src/inflated_roi_octree_display.cpp include/octomap_vpp_rviz_plugin/inflated_roi_octree_display.h
     src/counting_octree_display.cpp include/octomap_vpp_rviz_plugin/counting_octree_display.h
     src/workspace_octree_display.cpp include/octomap_vpp_rviz_plugin/workspace_octree_display.h
+    src/nearest_region_octree_display.cpp include/octomap_vpp_rviz_plugin/nearest_region_octree_display.h
     ${MOC_FILES})
 
 ## Add cmake target dependencies of the library

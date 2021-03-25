@@ -86,6 +86,7 @@ void InflatedRoiOctreeDisplay::incomingMessageCallback(const octomap_msgs::Octom
     octomap = dynamic_cast<octomap_vpp::InflatedRoiOcTree*>(tree);
     if(!octomap){
       setStatusStd(StatusProperty::Error, "Message", "Wrong octomap type. Use a different display type.");
+      return;
     }
   }
   else

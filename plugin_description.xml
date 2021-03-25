@@ -10,7 +10,7 @@
          type="octomap_vpp_rviz_plugin::InflatedRoiOctreeDisplay"
          base_class_type="rviz::Display">
     <description>
-      Displays ROI octree.
+      Displays inflated ROI octree.
     </description>
   </class>
   <class name="octomap_vpp_rviz_plugin/CountingOcTreeDisplay"
@@ -25,6 +25,13 @@
          base_class_type="rviz::Display">
     <description>
       Displays workspace octree.
+    </description>
+  </class>
+  <class name="octomap_vpp_rviz_plugin/NearestRegionOcTreeDisplay"
+         type="octomap_vpp_rviz_plugin::NearestRegionOcTreeDisplay"
+         base_class_type="rviz::Display">
+    <description>
+      Displays nearest region octree.
     </description>
   </class>
 </library>
