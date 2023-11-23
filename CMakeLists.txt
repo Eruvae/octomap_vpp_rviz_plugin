@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 2.8.3)
+cmake_minimum_required(VERSION 3.0.2)
 project(octomap_vpp_rviz_plugin)
 
 add_compile_options(-std=c++17)
@@ -152,6 +152,7 @@ add_library(${PROJECT_NAME}
     src/counting_octree_display.cpp include/octomap_vpp_rviz_plugin/counting_octree_display.h
     src/workspace_octree_display.cpp include/octomap_vpp_rviz_plugin/workspace_octree_display.h
     src/nearest_region_octree_display.cpp include/octomap_vpp_rviz_plugin/nearest_region_octree_display.h
+    src/semantic_octree_display.cpp include/octomap_vpp_rviz_plugin/semantic_octree_display.h
     ${MOC_FILES})
 
 ## Add cmake target dependencies of the library
