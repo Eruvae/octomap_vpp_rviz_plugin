@@ -210,7 +210,7 @@ void SemanticOcTreeDisplay::setVoxelColor(rviz::PointCloud::Point& newPoint, oct
         newPoint.setColor(min_r + cell_probability * (max_r - min_r), min_g + cell_probability * (max_g - min_g), min_b + cell_probability * (max_b - min_b));
         break;
       case OCTOMAP_CLASS_COLOR:
-        class_id = node.getMostLikelyClassID();
+        class_id = node.getMostLikelyClassID() + 2; // don't use black and white for first two classes
         newPoint.setColor(glasbey[class_id][0] / 255.f, glasbey[class_id][1] / 255.f, glasbey[class_id][2] / 255.f);
         break;
       default:
